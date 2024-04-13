@@ -4,6 +4,10 @@ const cookieParser = require('cookie-parser');
 const logger = require('morgan');
 const cors = require('cors');
 const app = express();
+var jwt = require('jsonwebtoken');
+const JWT_SECRET = "blog";
+const authMiddleware = require('./middleware/authMiddleware.js');
+const TOKEN_KEY = 'ABCXYZ';
 
 
 app.use(cors());
@@ -21,7 +25,7 @@ const uri = "mongodb://localhost:27017/";
 const client = new MongoClient(uri);
 
 
-app.get('/blogs', async (req, res, next) => {
+app.get('/blogs', authMiddleware, async (req, res, next) => {
     try {
         await client.connect();
         const database = client.db('blog');
@@ -35,7 +39,7 @@ app.get('/blogs', async (req, res, next) => {
 });
 
 
-app.post('/blogs', async (req, res, next) => {
+app.post('/blogs', authMiddleware, async (req, res, next) => {
   const { title, description, category} = req.body;
   try {
       await client.connect();
@@ -55,7 +59,7 @@ app.post('/blogs', async (req, res, next) => {
 });
 
 
-app.delete('/blogs/:id', async (req, res, next) => {
+app.delete('/blogs/:id', authMiddleware, async (req, res, next) => {
     const { id: blogIdToDelete } = req.params;
     try {
         await client.connect();
@@ -88,4 +92,47 @@ app.post('/users', async (req, res, next) => {
       } finally {
         //await client.close();
       }
-  });git
+  });
+
+
+
+  app.post('/login', async (req, res, next) => {
+    const { email, password} = req.body;
+    try {
+        await client.connect();
+        const database = client.db('blog');
+        const userCollection = database.collection('users');
+        const user = await userCollection.findOne({email});
+        if(user){
+            console.log("success");
+            if(user.password === password){
+                console.log("Password Checked");
+                const data = {
+                    users:{id: user.id}
+                };
+
+                const authToken = jwt.sign(
+                    data,
+                    TOKEN_KEY,
+  
+                );
+                return res.json({token: authToken, success: true});
+            }
+            else{
+                return res.json({token: null, success: false});
+            }
+        }
+        else{
+            return res.json({massage: 'Invalid UserName or Password', success: false});
+        }
+
+      } finally {
+        await client.close();
+      }
+});
+
+app.get('/customer', authMiddleware, async (req, res, next) => {
+     return res.json({checked: 'true'});
+
+});
+
